@@ -153,11 +153,7 @@ export default function PollClient() {
   const [flyingFace, setFlyingFace] = useState<FlyingFace>(null);
   const [boyStickers, setBoyStickers] = useState<Sticker[]>([]);
   const [girlStickers, setGirlStickers] = useState<Sticker[]>([]);
-  const [voteStatus, setVoteStatus] = useState<{
-    type: 'success' | 'duplicate';
-    side: 'boy' | 'girl';
-    name: string;
-  } | null>(null);
+  const [myVote, setMyVote] = useState<'boy' | 'girl' | null>(null);
   const [nameError, setNameError] = useState('');
   const [loading, setLoading] = useState(false);
   const [noteSent, setNoteSent] = useState(false);
@@ -187,6 +183,14 @@ export default function PollClient() {
     const id = setInterval(fetchData, 5000);
     return () => clearInterval(id);
   }, [fetchData]);
+
+  // Restore vote state from localStorage whenever the name changes
+  useEffect(() => {
+    const key = name.trim().toLowerCase();
+    if (!key) { setMyVote(null); return; }
+    const stored = localStorage.getItem(`bbvote_${key}`);
+    setMyVote(stored === 'boy' || stored === 'girl' ? stored : null);
+  }, [name]);
 
   const fireConfetti = useCallback(async (side: 'boy' | 'girl') => {
     const confetti = (await import('canvas-confetti')).default;
@@ -233,6 +237,10 @@ export default function PollClient() {
       const data = await res.json();
       if (!data.updated && !data.alreadyVoted === false) return;
 
+      // Persist updated vote
+      localStorage.setItem(`bbvote_${name.trim().toLowerCase()}`, newSide);
+      setMyVote(newSide);
+
       // Optimistic count swap
       if (oldSide === 'boy') setBoyCount(prev => Math.max(0, prev - 1));
       else setGirlCount(prev => Math.max(0, prev - 1));
@@ -253,7 +261,6 @@ export default function PollClient() {
         });
       }
 
-      setVoteStatus({ type: 'success', side: newSide, name: name.trim() });
       setTimeout(() => fireConfetti(newSide), 380);
       await fetchData();
     } catch {
@@ -276,10 +283,16 @@ export default function PollClient() {
       const data = await res.json();
 
       if (data.alreadyVoted) {
-        setVoteStatus({ type: 'duplicate', side: data.existingVote, name: name.trim() });
+        // Sync localStorage with what the server knows
+        localStorage.setItem(`bbvote_${name.trim().toLowerCase()}`, data.existingVote);
+        setMyVote(data.existingVote);
         fetchData();
         return;
       }
+
+      // Persist vote
+      localStorage.setItem(`bbvote_${name.trim().toLowerCase()}`, side);
+      setMyVote(side);
 
       // Optimistic: increment count immediately
       if (side === 'boy') setBoyCount(prev => prev + 1);
@@ -308,7 +321,6 @@ export default function PollClient() {
         });
       }
 
-      setVoteStatus({ type: 'success', side, name: name.trim() });
       setMsgText('');
       setTimeout(() => fireConfetti(side), 380);
       await fetchData(); // reconcile with server
@@ -414,34 +426,31 @@ export default function PollClient() {
         </div>
 
         <AnimatePresence mode="wait">
-          {voteStatus?.type === 'duplicate' && (
-            <motion.div key="dup" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="max-w-md w-full rounded-2xl px-4 py-3 text-sm shadow-sm border"
-              style={{ background: '#FFF9EC', borderColor: '#F6CC7A', color: '#92650A' }}>
-              <p>
-                <strong>{voteStatus.name}</strong> already voted{' '}
-                <strong>{voteStatus.side === 'boy' ? 'Boy 🌿' : 'Girl 🪸'}</strong>.
-              </p>
-              <button
-                onClick={() => handleChangeVote(voteStatus.side === 'boy' ? 'girl' : 'boy')}
-                disabled={loading}
-                className="mt-1.5 text-xs font-bold underline underline-offset-2 disabled:opacity-40"
-                style={{ color: voteStatus.side === 'boy' ? GIRL.accent : BOY.accent }}
-              >
-                Changed your mind? Switch to {voteStatus.side === 'boy' ? 'Girl 🪸' : 'Boy 🌿'}
-              </button>
-            </motion.div>
-          )}
-          {voteStatus?.type === 'success' && (
-            <motion.div key="ok" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          {myVote && name.trim() && (
+            <motion.div
+              key="voted"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
               className="max-w-md w-full rounded-2xl px-4 py-3 text-sm shadow-sm border"
               style={{
-                background: voteStatus.side === 'boy' ? BOY.bannerBg : GIRL.bannerBg,
-                borderColor: voteStatus.side === 'boy' ? BOY.bannerBorder : GIRL.bannerBorder,
-                color: voteStatus.side === 'boy' ? BOY.text : GIRL.text,
-              }}>
-              You voted <strong>{voteStatus.side === 'boy' ? 'Boy 🌿' : 'Girl 🪸'}</strong>! Thanks,{' '}
-              <strong>{voteStatus.name}</strong>! 🎉
+                background: myVote === 'boy' ? BOY.bannerBg : GIRL.bannerBg,
+                borderColor: myVote === 'boy' ? BOY.bannerBorder : GIRL.bannerBorder,
+                color: myVote === 'boy' ? BOY.text : GIRL.text,
+              }}
+            >
+              <p>
+                <strong>{name.trim()}</strong> voted{' '}
+                <strong>{myVote === 'boy' ? 'Boy 🌿' : 'Girl 🪸'}</strong>! 🎉
+              </p>
+              <button
+                onClick={() => handleChangeVote(myVote === 'boy' ? 'girl' : 'boy')}
+                disabled={loading}
+                className="mt-1.5 text-xs font-bold underline underline-offset-2 disabled:opacity-40"
+                style={{ color: myVote === 'boy' ? GIRL.accent : BOY.accent }}
+              >
+                Changed your mind? Switch to {myVote === 'boy' ? 'Girl 🪸' : 'Boy 🌿'}
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -469,11 +478,11 @@ export default function PollClient() {
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             onClick={() => handleVote('boy')}
-            disabled={loading}
-            className="px-8 sm:px-10 py-3 sm:py-3.5 text-white font-black text-base sm:text-lg rounded-full shadow-lg disabled:opacity-50 active:opacity-80"
+            disabled={loading || !!myVote}
+            className="px-8 sm:px-10 py-3 sm:py-3.5 text-white font-black text-base sm:text-lg rounded-full shadow-lg disabled:opacity-40 active:opacity-80"
             style={{ background: BOY_BTN }}
           >
-            Boy 🌿
+            {myVote === 'boy' ? '✓ Your vote' : 'Boy 🌿'}
           </motion.button>
 
           <div className="relative w-44" ref={boyBasketRef}>
@@ -523,11 +532,11 @@ export default function PollClient() {
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             onClick={() => handleVote('girl')}
-            disabled={loading}
-            className="px-8 sm:px-10 py-3 sm:py-3.5 text-white font-black text-base sm:text-lg rounded-full shadow-lg disabled:opacity-50 active:opacity-80"
+            disabled={loading || !!myVote}
+            className="px-8 sm:px-10 py-3 sm:py-3.5 text-white font-black text-base sm:text-lg rounded-full shadow-lg disabled:opacity-40 active:opacity-80"
             style={{ background: GIRL_BTN }}
           >
-            Girl 🪸
+            {myVote === 'girl' ? '✓ Your vote' : 'Girl 🪸'}
           </motion.button>
 
           <div className="relative w-44" ref={girlBasketRef}>
