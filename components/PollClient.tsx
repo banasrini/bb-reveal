@@ -6,6 +6,7 @@ import BasketSVG from './BasketSVG';
 import { BABY_LAST_NAME, DAD_NAME, MOM_NAME } from '@/lib/config';
 
 type Message = { name: string; message: string; created_at: string };
+type VoteRow = { name: string; vote: string; created_at: string };
 type Sticker = { id: number; rotation: number; name: string };
 type FlyingFace = {
   id: number;
@@ -150,6 +151,7 @@ export default function PollClient() {
   const [boyCount, setBoyCount] = useState(0);
   const [girlCount, setGirlCount] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [allVotes, setAllVotes] = useState<VoteRow[]>([]);
   const [flyingFace, setFlyingFace] = useState<FlyingFace>(null);
   const [boyStickers, setBoyStickers] = useState<Sticker[]>([]);
   const [girlStickers, setGirlStickers] = useState<Sticker[]>([]);
@@ -173,6 +175,7 @@ export default function PollClient() {
       setBoyCount(data.boyCount ?? 0);
       setGirlCount(data.girlCount ?? 0);
       setMessages(data.messages ?? []);
+      setAllVotes(data.votes ?? []);
     } catch {
       // silently ignore polling errors
     }
@@ -600,6 +603,50 @@ export default function PollClient() {
           </div>
         )}
       </section>
+
+      {/* ── Votes table ── */}
+      {allVotes.length > 0 && (
+        <section className="py-8 sm:py-10 px-4 border-t border-amber-100" style={{ background: 'rgba(255,255,255,0.4)' }}>
+          <h2 className="text-xl sm:text-2xl font-black text-center text-gray-700 mb-5">
+            🗳️ All Votes
+          </h2>
+          <div className="max-w-lg mx-auto overflow-hidden rounded-2xl border border-amber-100 shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: '#FFF9F0' }}>
+                  <th className="text-left px-4 py-3 font-bold text-gray-500 w-8">#</th>
+                  <th className="text-left px-4 py-3 font-bold text-gray-500">Name</th>
+                  <th className="text-center px-4 py-3 font-bold text-gray-500">Vote</th>
+                  <th className="text-right px-4 py-3 font-bold text-gray-500 hidden sm:table-cell">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allVotes.map((v, i) => (
+                  <tr
+                    key={v.name}
+                    className="border-t border-amber-50"
+                    style={{ background: i % 2 === 0 ? 'white' : '#FFFDF9' }}
+                  >
+                    <td className="px-4 py-3 text-gray-300 font-mono text-xs">{i + 1}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-700">{v.name}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className="inline-block px-3 py-0.5 rounded-full text-xs font-bold text-white"
+                        style={{ background: v.vote === 'boy' ? BOY.accent : GIRL.accent }}
+                      >
+                        {v.vote === 'boy' ? 'Boy 🌿' : 'Girl 🪸'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400 text-xs hidden sm:table-cell">
+                      {new Date(v.created_at + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <footer className="py-3 text-center text-xs text-gray-400">
         Made with 💛 for Baby {BABY_LAST_NAME}
